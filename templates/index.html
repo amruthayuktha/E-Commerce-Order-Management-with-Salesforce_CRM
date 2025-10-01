@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="hero">
+  <div class="hero-inner">
+    <h1>Modern Store</h1>
+    <p>Fast · Stylish · Secure</p>
+    <div class="search-row">
+      <input id="searchInput" placeholder="Search products..." aria-label="Search products">
+    </div>
+  </div>
+</section>
+
+<main id="products-grid" class="products-grid" aria-live="polite"></main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<style>
+  .hero {
+    background-image: url('https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=80');
+    background-size: cover;
+    background-position: center;
+    color: white;
+    text-align: center;
+    padding: 100px 20px;
+  }
+  .hero-inner h1 {
+    font-size: 3rem;
+    margin-bottom: 10px;
+  }
+  .card {
+    transition: transform 0.2s;
+  }
+  .card:hover {
+    transform: translateY(-5px);
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // *** Direct links to free product photos on the web ***
+  const products = [
+    {
+      id:1,
+      name:"Classic T-Shirt",
+      price:499,
+      img:"https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=60"
+    },
+    {
+      id:2,
+      name:"Blue Jeans",
+      price:1299,
+      img:"https://xcdn.next.co.uk/common/items/default/default/itemimages/3_4Ratio/product/lge/206781s.jpg?im=Resize,width=750"
+    },
+    {
+      id:3,
+      name:"Running Shoes",
+      price:2499,
+      img:"https://static.nike.com/a/images/t_PDP_936_v1/f_auto,q_auto:eco/3138c8f0-5929-48d7-8c58-9126f53d8463/NIKE+INTERACT+RUN+EASYON.png"
+    },
+    {
+      id:4,
+      name:"Winter Jacket",
+      price:2999,
+      img:"https://cdn-images.farfetch-contents.com/22/88/52/06/22885206_53052819_1000.jpg"
+    }
+  ];
+
+  const grid = document.getElementById('products-grid');
+  const toast = document.getElementById('toast');
+  const cartCountEl = document.getElementById('cart-count');
+
+  function getCart(){ return JSON.parse(localStorage.getItem('cart') || '[]'); }
+  function setCart(c){ localStorage.setItem('cart', JSON.stringify(c)); }
+  function updateCartCount(){
+    const total = getCart().reduce((sum, it) => sum + (it.qty || 1), 0);
+    cartCountEl.textContent = total ? `(${total})` : '';
+  }
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=> toast.classList.remove('show'), 2000);
+  }
+
+  function renderProducts(list){
+    grid.innerHTML = '';
+    list.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <img src="${p.img}" alt="${p.name}">
+        <div class="info">
+          <h2>${p.name}</h2>
+          <p class="price">₹${p.price}</p>
+          <div class="card-actions">
+            <button class="btn-add">Add to Cart</button>
+            <a class="btn-detail" href="#">View</a>
+          </div>
+        </div>`;
+      card.querySelector('.btn-add').addEventListener('click', () => addToCart(p));
+      grid.appendChild(card);
+    });
+  }
+
+  function addToCart(product){
+    const cart = getCart();
+    const existing = cart.find(x => x.id === product.id);
+    if(existing) existing.qty = (existing.qty || 1) + 1;
+    else cart.push({...product, qty: 1});
+    setCart(cart);
+    updateCartCount();
+    showToast(`${product.name} added to cart`);
+  }
+
+  document.getElementById('searchInput').addEventListener('input', e => {
+    const q = e.target.value.toLowerCase();
+    renderProducts(products.filter(p => p.name.toLowerCase().includes(q)));
+  });
+
+  renderProducts(products);
+  updateCartCount();
+});
+</script>
+
+{% endblock %}

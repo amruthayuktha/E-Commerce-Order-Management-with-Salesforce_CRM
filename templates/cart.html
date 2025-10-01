@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block content %}
+<main class="cart-container">
+  <h1>Your Cart</h1>
+  <div id="cart-items"></div>
+
+  <h2>Checkout</h2>
+  <form id="checkoutForm" class="checkout-form">
+    <h3>Contact Information</h3>
+    <input type="text" name="name" placeholder="Full Name" required>
+    <input type="email" name="email" placeholder="Email Address" required>
+    <input type="tel" name="mobile" placeholder="Mobile Number" required>
+
+    <h3>Billing Address</h3>
+    <input type="text" name="street" placeholder="Street Address" required>
+    <input type="text" name="city" placeholder="City" required>
+    <input type="text" name="state" placeholder="State/Province">
+    <input type="text" name="zip" placeholder="Postal Code" required>
+    <input type="text" name="country" placeholder="Country" required>
+
+    <h3>Shipping Address</h3>
+    <div class="form-group">
+      <input type="checkbox" id="sameAsBilling" name="sameAsBilling" checked>
+      <label for="sameAsBilling">Shipping address same as billing address</label>
+    </div>
+    <div id="shippingAddressFields">
+      <input type="text" name="shipping_street" placeholder="Shipping Street Address" required disabled>
+      <input type="text" name="shipping_city" placeholder="Shipping City" required disabled>
+      <input type="text" name="shipping_state" placeholder="Shipping State/Province" disabled>
+      <input type="text" name="shipping_zip" placeholder="Shipping Postal Code" required disabled>
+      <input type="text" name="shipping_country" placeholder="Shipping Country" required disabled>
+    </div>
+
+    <h3>Payment Information</h3>
+    <div class="form-group">
+      <label for="paymentMethod">Select Payment Method:</label>
+      <select id="paymentMethod" name="paymentMethod" required>
+        <option value="">--Please choose an option--</option>
+        <option value="Card">Card</option>
+        <option value="UPI">UPI</option>
+        <option value="Cash">Cash on Delivery</option>
+      </select>
+    </div>
+
+    <div id="cardDetails" style="display: none;">
+      <input type="text" name="card" placeholder="Card Number">
+      <input type="text" name="expiry" placeholder="MM/YY">
+      <input type="text" name="cvc" placeholder="CVC">
+    </div>
+
+    <div id="upiDetails" style="display: none;">
+      <input type="text" name="upi_id" placeholder="UPI ID">
+    </div>
+
+    <button type="submit">Place Order</button>
+  </form>
+  <div id="message" class="message"></div>
+</main>
+
+<style>
+  .loader {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 2s linear infinite;
+    margin: 20px auto;
+  }
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+</style>
+
+<script>
+let cart = JSON.parse(localStorage.getItem("cart")||"[]");
+const cartDiv = document.getElementById("cart-items");
+const checkoutForm = document.getElementById("checkoutForm");
+const messageDiv = document.getElementById("message");
+
+// Add a dummy item if cart is empty for testing purposes
+if (cart.length === 0) {
+  cart.push({
+    id: 99,
+    name: "Test Product",
+    price: 100,
+    qty: 1,
+    img: ""
+  });
+  localStorage.setItem("cart", JSON.stringify(cart)); // Persist dummy item
+}
+
+function renderCart(){
+  if(cart.length===0){
+    cartDiv.innerHTML = "<p>Your cart is empty.</p>";
+    return;
+  }
+  cartDiv.innerHTML = cart.map((c,i)=>`
+    <div class="cart-item">
+      <span>${c.name}</span>
+      <span>₹${c.price}</span>
+      <input type="number" min="1" value="${c.qty}" onchange="updateQty(${i}, this.value)">
+      <button onclick="removeItem(${i})">Remove</button>
+    </div>
+  `).join("");
+}
+function updateQty(i,val){ cart[i].qty=parseInt(val); localStorage.setItem("cart",JSON.stringify(cart)); renderCart(); }
+function removeItem(i){ cart.splice(i,1); localStorage.setItem("cart",JSON.stringify(cart)); renderCart(); }
+
+checkoutForm.addEventListener("submit", async e=>{
+  e.preventDefault();
+  if(cart.length===0){
+    messageDiv.textContent = "Your cart is empty!";
+    messageDiv.style.color = "red";
+    return;
+  }
+
+  messageDiv.innerHTML = '<div class="loader"></div>';
+
+  const data = {
+    name: e.target.name.value,
+    email: e.target.email.value,
+    mobile: e.target.mobile.value,
+    items: cart,
+    billing_address: {
+        street: e.target.street.value,
+        city: e.target.city.value,
+        state: e.target.state.value,
+        zip: e.target.zip.value,
+        country: e.target.country.value
+    },
+    shipping_address: {}
+  };
+
+  const sameAsBillingCheckbox = document.getElementById("sameAsBilling");
+  if (sameAsBillingCheckbox.checked) {
+    data.shipping_address = data.billing_address;
+  } else {
+    data.shipping_address = {
+        street: e.target.shipping_street.value,
+        city: e.target.shipping_city.value,
+        state: e.target.shipping_state.value,
+        zip: e.target.shipping_zip.value,
+        country: e.target.shipping_country.value
+    };
+  }
+
+  // Add payment method to data
+  const paymentMethod = document.getElementById("paymentMethod").value;
+  data.payment_method = paymentMethod;
+
+  if (paymentMethod === "Card") {
+    data.card_details = {
+      card_number: e.target.card.value,
+      expiry: e.target.expiry.value,
+      cvc: e.target.cvc.value
+    };
+  } else if (paymentMethod === "UPI") {
+    data.upi_id = e.target.upi_id.value;
+  }
+
+  try {
+    console.log("DEBUG: Sending fetch request to /api/salesforce/order with data:", data);
+    const res = await fetch("/api/salesforce/order", {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(data)
+    });
+
+    if(res.ok){
+      messageDiv.textContent = "Order placed successfully!";
+      messageDiv.style.color = "green";
+      localStorage.removeItem("cart");
+      setTimeout(() => window.location = "/", 2000);
+    } else {
+      const err = await res.json();
+      messageDiv.textContent = `Error: ${err.error}`;
+      messageDiv.style.color = "red";
+    }
+  } catch (err) {
+    messageDiv.textContent = "An unexpected error occurred.";
+    messageDiv.style.color = "red";
+  }
+});
+renderCart();
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelector('input[name="street"]').value = "";
+  document.querySelector('input[name="city"]').value = "";
+  document.querySelector('input[name="state"]').value = ""; // Explicitly set state to empty
+  document.querySelector('input[name="zip"]').value = "";
+  document.querySelector('input[name="country"]').value = "";
+});
+
+const sameAsBillingCheckbox = document.getElementById("sameAsBilling");
+const shippingAddressFields = document.getElementById("shippingAddressFields");
+
+function toggleShippingAddressFields() {
+  const inputs = shippingAddressFields.querySelectorAll("input");
+  if (sameAsBillingCheckbox.checked) {
+    inputs.forEach(input => {
+      input.setAttribute("disabled", "true");
+      input.value = ""; // Clear shipping fields when "same as billing" is checked
+    });
+    // Copy billing address to shipping address fields if needed for display, though not strictly necessary for backend logic
+    document.querySelector('input[name="shipping_street"]').value = document.querySelector('input[name="street"]').value;
+    document.querySelector('input[name="shipping_city"]').value = document.querySelector('input[name="city"]').value;
+    document.querySelector('input[name="shipping_state"]').value = document.querySelector('input[name="state"]').value;
+    document.querySelector('input[name="shipping_zip"]').value = document.querySelector('input[name="zip"]').value;
+    document.querySelector('input[name="shipping_country"]').value = document.querySelector('input[name="country"]').value;
+
+  } else {
+    inputs.forEach(input => {
+      input.removeAttribute("disabled");
+    });
+  }
+}
+
+// Initial call to set the state based on the checkbox
+toggleShippingAddressFields();
+
+// Add event listener for the checkbox
+sameAsBillingCheckbox.addEventListener("change", toggleShippingAddressFields);
+
+// Add event listeners to billing address fields to update shipping fields if "same as billing" is checked
+document.querySelectorAll('.checkout-form input[name="street"], .checkout-form input[name="city"], .checkout-form input[name="state"], .checkout-form input[name="zip"], .checkout-form input[name="country"]').forEach(input => {
+  input.addEventListener('input', () => {
+    if (sameAsBillingCheckbox.checked) {
+      document.querySelector('input[name="shipping_street"]').value = document.querySelector('input[name="street"]').value;
+      document.querySelector('input[name="shipping_city"]').value = document.querySelector('input[name="city"]').value;
+      document.querySelector('input[name="shipping_state"]').value = document.querySelector('input[name="state"]').value;
+      document.querySelector('input[name="shipping_zip"]').value = document.querySelector('input[name="zip"]').value;
+      document.querySelector('input[name="shipping_country"]').value = document.querySelector('input[name="country"]').value;
+    }
+  });
+});
+
+const paymentMethodSelect = document.getElementById("paymentMethod");
+const cardDetailsDiv = document.getElementById("cardDetails");
+const upiDetailsDiv = document.getElementById("upiDetails");
+
+function togglePaymentDetails() {
+  cardDetailsDiv.style.display = "none";
+  upiDetailsDiv.style.display = "none";
+
+  if (paymentMethodSelect.value === "Card") {
+    cardDetailsDiv.style.display = "block";
+    cardDetailsDiv.querySelectorAll('input').forEach(input => input.setAttribute('required', 'true'));
+    upiDetailsDiv.querySelectorAll('input').forEach(input => input.removeAttribute('required'));
+  } else if (paymentMethodSelect.value === "UPI") {
+    upiDetailsDiv.style.display = "block";
+    upiDetailsDiv.querySelectorAll('input').forEach(input => input.setAttribute('required', 'true'));
+    cardDetailsDiv.querySelectorAll('input').forEach(input => input.removeAttribute('required'));
+  } else {
+    cardDetailsDiv.querySelectorAll('input').forEach(input => input.removeAttribute('required'));
+    upiDetailsDiv.querySelectorAll('input').forEach(input => input.removeAttribute('required'));
+  }
+}
+
+paymentMethodSelect.addEventListener("change", togglePaymentDetails);
+togglePaymentDetails(); // Initial call to set visibility
+</script>
+{% endblock %}
