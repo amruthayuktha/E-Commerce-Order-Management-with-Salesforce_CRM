@@ -189,15 +189,9 @@ def get_or_create_contact(name, email, mobile, account_id):
     result = sf.query(query)
 
     if result['totalSize'] > 0:
-        # Update contact details if they have changed
+        # Update mobile number if it has changed
         contact_id = result['records'][0]['Id']
-        last_name = name.split(" ")[-1] if " " in name else name
-        first_name = name.replace(f" {last_name}", "") if " " in name else ""
-        sf.Contact.update(contact_id, {
-            'FirstName': first_name,
-            'LastName': last_name,
-            'MobilePhone': mobile
-        })
+        sf.Contact.update(contact_id, {'MobilePhone': mobile})
         return contact_id
     else:
         last_name = name.split(" ")[-1] if " " in name else name
